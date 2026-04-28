@@ -1,2 +1,3 @@
-# 767y320
-Ty
+local game = I 
+
+print("game")
