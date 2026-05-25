@@ -1,0 +1,117 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+
+local player = Players.LocalPlayer
+local camera = Workspace.CurrentCamera
+
+local gui = player:WaitForChild("PlayerGui")
+local button = gui:WaitForChild("ScreenGui"):WaitForChild("AimLockButton")
+
+local LOCK_RANGE = 150
+local SMOOTHNESS = 0.15
+
+local aimLockEnabled = false
+local currentTarget = nil
+
+local function toggleAimLock()
+	aimLockEnabled = not aimLockEnabled
+	
+	if not aimLockEnabled then
+		currentTarget = nil
+	end
+	
+	button.Text = aimLockEnabled and "Aim Lock: ON" or "Aim Lock: OFF"
+end
+
+button.MouseButton1Click:Connect(toggleAimLock)
+
+UserInputService.InputBegan:Connect(function(input, processed)
+	if processed then return end
+	
+	if input.KeyCode == Enum.KeyCode.Q then
+		toggleAimLock()
+	end
+end)
+
+local function isVisible(targetHead)
+	local origin = camera.CFrame.Position
+	local direction = (targetHead.Position - origin)
+
+	local raycastParams = RaycastParams.new()
+	raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+	raycastParams.FilterDescendantsInstances = {
+		player.Character
+	}
+
+	local result = Workspace:Raycast(
+		origin,
+		direction,
+		raycastParams
+	)
+
+	if result then
+		return result.Instance:IsDescendantOf(targetHead.Parent)
+	end
+
+	return false
+
+local function getClosestTarget()
+	local closest = nil
+	local shortestDistance = LOCK_RANGE
+
+	for _, otherPlayer in pairs(Players:GetPlayers()) do
+		if otherPlayer ~= player then
+			local character = otherPlayer.Character
+			
+			if character then
+				local humanoid = character:FindFirstChild("Humanoid")
+				local head = character:FindFirstChild("Head")
+				
+				if humanoid and humanoid.Health > 0 and head then
+					
+					local distance = (
+						head.Position - camera.CFrame.Position
+					).Magnitude
+					
+					if distance < shortestDistance then
+						
+						if isVisible(head) then
+							shortestDistance = distance
+							closest = head
+						end
+					end
+				end
+			end
+		end
+	end
+
+	return closest
+end
+
+---------------------------------------------------
+-- AIM LOCK
+---------------------------------------------------
+
+RunService.RenderStepped:Connect(function()
+	if not aimLockEnabled then
+		return
+	end
+	
+	currentTarget = getClosestTarget()
+
+	if currentTarget then
+		local camPos = camera.CFrame.Position
+		
+		local targetCFrame = CFrame.new(
+			camPos,
+			currentTarget.Position
+		)
+
+		camera.CFrame = camera.CFrame:Lerp(
+			targetCFrame,
+			SMOOTHNESS
+		)
+	end
+end)
